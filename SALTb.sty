@@ -1,0 +1,231 @@
+%  ****************************************
+%  *       SALT.sty v 1.2, 11.06.2007     *
+%  * Author: Kniazev Alexei
+%  ****************************************
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{SALT}[2007/06/11 SALT.sty,v.1.2]
+
+%\usepackage{eso-pic}
+%\usepackage{graphicx}
+\RequirePackage{eso-pic}
+\RequirePackage{graphicx}
+
+\newif\if@oldLaTeX
+\@ifundefined{if@compatibility}{\@oldLaTeXtrue}{\@oldLaTeXfalse}
+\if@oldLaTeX
+%    \typeout{***old LaTeX***}%
+%    \newif\if@compatibility%
+%    \@compatibilitytrue%
+\else
+%    \typeout{***new LaTeX***}
+\fi
+
+%
+%************************ PAGE LAYOUT BEGIN ****************************
+%
+\textwidth=166mm
+\textheight 22cm
+\oddsidemargin= -2.4mm
+\evensidemargin= -2.4mm
+\topmargin= -5.4mm
+\headheight=12pt % 4.2mm
+\headsep=32pt    % 11.2mm
+
+%
+%************************ PAGE LAYOUT END *****************************
+%
+
+%
+%************************ Background Picture **************************
+%
+\newcommand\BackgroundPicture{%
+   \put(0,0){%
+     \parbox[b][\paperheight]{\paperwidth}{%
+       \vfill
+       \centering
+       \includegraphics[width=\paperwidth,height=\paperheight,%
+			keepaspectratio]{rose}%
+       \vfill
+     }}}
+% The picture is centered on the page background
+
+%
+%************************ SALT logo ***********************************
+%
+\newcommand\SALTIcon{%
+     \parbox[b][14.5cm]{3.5cm}{%
+       \vfill
+       \centering
+       \includegraphics[width=14cm,height=3cm,keepaspectratio]{SAAO_SALT_Logos.png}}%
+       \vfill
+}
+
+%
+%************************ A Framed Background *************************
+%
+\newcommand\qubodub{%
+  \begingroup
+    \setlength{\@tempdima}{15mm}%
+    \setlength{\@tempdimb}{\paperwidth-2\@tempdima}%
+    \setlength{\@tempdimc}{\paperheight-2\@tempdima}%
+    \thicklines%
+    \put(\LenToUnit{\@tempdima},\LenToUnit{\@tempdima}){%
+      \framebox(\LenToUnit{\@tempdimb},\LenToUnit{\@tempdimc}){}}%
+  \endgroup
+}
+
+%\AddToShipoutPicture{\BackgroundPicture}
+%\AddToShipoutPicture{\SALTIcon}
+%\AddToShipoutPicture{\qubodub}
+
+
+%********************** TITLE BEGIN ****************************
+
+% New command saaoname
+\newcommand{\saaoname}{\sc South African Astronomical Observatory,
+		       Cape Town 7925, South Africa}
+
+%  ****************************************
+%  *           PARAGRAPHING               *
+%  ****************************************
+%
+\newlength{\realparindent} % needed for abstract
+\setlength\parskip{ \z@ plus .1pt }
+\setlength\parindent{ 18pt }
+\setlength{\realparindent}{\parindent}
+\setlength\partopsep{ 0pt plus 1pt }
+\@lowpenalty   51
+\@medpenalty  151
+\@highpenalty 301
+\@beginparpenalty -\@lowpenalty
+\@endparpenalty -\@lowpenalty
+\@itempenalty -\@lowpenalty
+\clubpenalty=0
+\widowpenalty=10000
+
+
+
+
+
+
+%************************ PAGE STYLE *****************************
+%
+\mark{{}{}}
+\def\author{\@ifnextchar [{\@authortwo}{\@authorone}}
+\def\@authortwo[#1]#2{\gdef\@author{#2}\gdef\@shortauthor{#1}}
+\def\@authorone#1{\gdef\@author{#1}\gdef\@shortauthor{#1}}
+\gdef\@author{\mbox{Lev Nikolaevich Tolstoy}}
+\gdef\@shortauthor{Tolstoy L.N.}
+\def\title{\@ifnextchar [{\@titletwo}{\@titleone}}
+\def\@titletwo[#1]#2{\gdef\@title{#2}\gdef\@shorttitle{#1}}
+\def\@titleone#1{\gdef\@title{#1}\gdef\@shorttitle{#1}}
+\gdef\@title{\mbox{War and Peace}}
+\gdef\@shorttitle{War and Peace. Book I.}
+%
+\def\dnumber#1{\gdef\@dnumber{#1}}
+\gdef\@dnumber{}
+\def\version#1{\gdef\@version{#1}}
+\gdef\@version{0.0}
+\def\keywords#1{\gdef\@keywords{#1}}
+\gdef\@keywords{empty}
+\def\approved#1{\gdef\@approved{#1}}
+\gdef\@approved{Petri V\"ais\"anen (Ast Ops Manager)}
+\def\aabstract#1{\gdef\@aabstract{%
+    \begin{minipage}{14cm}
+    {\bf ABSTRACT}\\
+    \slshape #1
+    \end{minipage}
+    }}
+\gdef\@aabstract{}
+%
+\def\volume#1{\gdef\@volume{#1}}
+\gdef\@volume{000}
+\def\tod@y{\today}
+\def\microfiche#1{\gdef\@microfiche{#1}}
+\gdef\@microfiche{}
+\def\pubyear#1{\gdef\@pubyear{#1}}
+\gdef\@pubyear{0000}
+\def\pagerange#1{\gdef\@pagerange{#1}}
+\gdef\@pagerange{000--000}
+\def\journal#1{\gdef\@journal{#1}}
+\def\plate#1{\gdef\pl@te{#1}}
+%
+% \ps@empty and \ps@plain defined in LATEX.TEX
+%
+\def\@ddell{}
+\def\ps@myheadings{\let\@mkboth\markboth
+ \def\@oddhead{\vbox{\large\hfill{\it\@shorttitle}\hspace{1.5em}\rm\@ddell\thepage\\~\hrule}}
+% \def\@oddfoot{\thepage}
+% \def\@oddfoot{\small SALT style v.1.0 \copyright\ 2007\hfil}
+ \def\@oddfoot{\vbox{\hrule\vspace*{2mm}{\sc SALT\,\,\@dnumber}\hspace{1.5em}{\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+%% \def\@oddfoot{\vbox{\hrule\vspace*{2mm}\large{\sc SALT\,\@dnumber}\hspace{1.5em}{\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+% \def\@evenhead{\large\@ddell\thepage\hspace{1.5em}\it\@shortauthor\hfill}
+ \def\@evenhead{\vbox{\large\hfill{\it\@shortauthor}\hspace{1.5em}\rm\@ddell\thepage\\~\hrule}}
+ \def\@evenfoot{\vbox{\hrule\vspace*{2mm}{\sc SALT\,\,\@dnumber}\hspace{1.5em}{\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+%% \def\@evenfoot{\vbox{\hrule\vspace*{2mm}\large{\sc SALT\,\@dnumber}\hspace{1.5em}{\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+% \def\@evenfoot{\vbox{\large\hfill{\it\@shortauthor}\hspace{1.5em}\rm\@ddell\thepage}}
+ \def\sectionmark##1{\markboth{##1}{}}
+ \def\subsectionmark##1{\markright{##1}}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% New command issue
+\newsavebox{\issueblok}
+\def\issue#1{\sbox{\issueblok}{{\it #1}}}
+
+% saaotitle
+%
+\def\ps@saaotitle{\let\@mkboth\@gobbletwo
+ \def\@oddhead{\vbox{\large\hfill{\it\@shorttitle}\hspace{1.5em}\rm\@ddell\thepage\\~\hrule}}
+%\def\@oddhead{\null\copy\issueblok\hfil}
+%\def\@oddfoot{\rm\hfil\thepage\hfil}
+% \def\@oddfoot{\vbox{\hrule\vspace*{2mm}\large{\sc SALT\,\@dnumber}\hspace{1.5em}{\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+ \def\@oddfoot{\vbox{\hrule\vspace*{2mm}{\sc SALT\,\,\@dnumber}\hspace{1.5em}{\small\sc Version \@version}\hfill{\bf Page~\thepage~from~\pageref{lastpage}}\hfill{\sc \@date}}}
+\let\@evenhead\@oddhead\let\@evenfoot\@oddfoot
+}
+
+
+%************************ ACKNOWLEDGEMENTS ***********************
+%
+\def\acknowname{Acknowledgements}
+\def\acknowledgements{\par\addvspace{6pt}\begingroup\small\rm
+\trivlist\item[\hskip\labelsep{\bf \acknowname .\/}]}
+\def\endacknowledgements{\endtrivlist\endgroup\addvspace{6pt}}
+
+%************************ THEBIBLIOGRAPHY *************************
+%
+\def\thebibliography#1{\small\section*{\refname}\list
+% The \arabic{enumi} command has been removed because we don't use
+% numbered citations in astronomical journals.
+ {}{\setlength\labelwidth{1.4em}\leftmargin\labelwidth
+ \setlength\parsep{0pt}\setlength\itemsep{0pt}
+ \setlength{\itemindent}{-\leftmargin}
+ \usecounter{enumi}}
+ \def\newblock{\hskip .11em plus .33em minus -.07em}
+ \sloppy
+ \sfcode`\.=1000\relax}
+\let\endthebibliography=\endlist
+
+% Redefine \@cite so no square brackets are output.
+% Redefine \@biblabel so the label is not output in the bibliography.
+
+\def\@cite#1#2{{#1\if@tempswa , #2\fi}}
+\def\@biblabel#1{}
+
+%************************** INITIALIZATION ************************
+%
+\if@oldLaTeX \ds@twoside \else \@twosidetrue\@mparswitchtrue\fi% two side
+\flushbottom
+\hfuzz=2pt
+\vfuzz=2pt
+\tolerance=1000
+\ps@myheadings
+\pagenumbering{arabic}
+\if@twocolumn
+ \twocolumn
+% \sloppy
+\else
+ \onecolumn
+\fi
+\frenchspacing
+
