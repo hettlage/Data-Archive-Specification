@@ -1,0 +1,26 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{graphqlapi}[2018/12/03 GraphQL API package]
+
+\RequirePackage{fancyvrb}
+\RequirePackage{framed}
+\RequirePackage{xcolor}
+
+\definecolor{vrbbg}{gray}{0.93}
+
+\newcommand*{\apiheading}[1]{\subsubsection{#1}}
+
+\newcommand*{\apiitem}[1]{\subsubsection*{\em #1}}
+
+\newcommand*{\restrictions}{\apiitem{Restrictions}}
+\newcommand*{\errors}{\apiitem{Errors}}
+\newcommand*{\functionality}{\apiitem{Functionality}}
+
+\newenvironment{code}
+ {\SaveVerbatim{cverb}}
+ {\endSaveVerbatim
+  \flushleft\fboxrule=0pt\fboxsep=.5em
+  \colorbox{vrbbg}{%
+    \makebox[\dimexpr\linewidth-2\fboxsep][l]{\BUseVerbatim{cverb}}%
+  }
+  \endflushleft
+}

@@ -1,0 +1,1037 @@
+\section{API}
+
+The API for the data archive is based on \Gls{graphql}. The following sections outline its types, queries, mutations and subscriptions.
+
+\subsection{General considerations}
+
+\subsubsection{Status codes and errors}
+
+GraphQL conventions are followed regarding status codes and error messages. In particular, the status code of any HTTP response should always be 200, irrespective of whether the request is successful. Errors should always be reported via the \verb|errors| field in the GraphQL response payload.
+
+Error messages should be human-friendly.
+
+\subsubsection{Authentication}
+\label{sec:authentication}
+
+Users are authenticated against a username and password stored in the database. The stored password is hashed using \gls{bcrypt} with 10 salt rounds.
+
+Requests to the API can be authenticated either by a cookie or a JWT authentication header.
+
+If a cookie is used, the cookie must be named ``token'' and it  must contain a signed JWT token. If the Authorization header is used, the header value must be the string ``Token'' followed by a blank and a valid JWT token. In both cases the token shall just contain a \verb|userId| with the user's id.
+
+If both a cookie and an Authorization header are supplied, an error shall be thrown.
+
+\begin{note}
+Cookie-based authentication is used as it is required for seamless server-side rendering. HTTP based authentication is offered to support API clients other than the data archive web frontend.
+\end{note}
+
+\subsubsection{GraphQL extensions}
+
+The API content described below makes use of various extensions to the GraphQL standard.
+
+\begin{itemize}
+    \item The \verb|DateTime| scalar type is a datetime and it must be specified as a string conforming to the ISO 8601 format. See the \href{https://www.prisma.io/docs/1.4/reference/service-configuration/data-modelling-(sdl)-eiroozae8u/#scalar-types}{\Gls{prisma} documentation on scalars} for examples.
+    \item The \verb|JSON| scalar type is an arbitrary JSON object. See the \href{https://www.prisma.io/docs/1.4/reference/service-configuration/data-modelling-(sdl)-eiroozae8u/#scalar-types}{\Gls{prisma} documentation on scalars} for more details.
+    \item The \verb|@unique| directive indicates that the field must have a unique value.
+    \item The \verb|@client| directive indicates that a field is defined on the client side.
+\end{itemize}
+
+\subsection{Types}
+
+\apiheading{User}
+
+\begin{code}
+type User {
+  id: ID! @unique
+  givenName: String!
+  familyName: String!
+  username: String! @unique
+  password: String!
+  email: String! @unique
+  affiliation: String!
+  accountLinks: [AccountLink!]!
+  permissions: [Permission!]
+  passwordResetToken: String
+  passwordResetTokenExpiry: DateTime
+}
+\end{code}
+
+A registered user of the data archive. The given and family name may be any string. The username must start with a letter and may only contain letters from a to z, digits, underscores and dashes. The password shall contain at least 8 characters. The email shall contain an '@'.
+
+The affiliation can be an arbitrary string.
+
+The \verb|permissions| define what privileges the user has,
+
+The \verb|acountLinks| field records accounts by other providers (such as the SALT Web Manager or the SAAO Observer Portal) to which the user's account is linked.
+
+\begin{note}
+While the username is stored exactly in the way the user specified it when registering, it should be treated as case-insensitive for the purpose of authentication.
+\end{note}
+
+\apiheading{Permission}
+
+\begin{code}
+enum Permission {
+  ADMIN
+}
+\end{code}
+
+An enumeration of the user permissions for the data archive. Currently there is only an \verb|ADMIN| permission, which gives the user all rights.
+
+\apiheading{Telescope}
+
+\begin{code}
+enum Telescope {
+  LESEDI
+  SAAO_1_9
+  SALT
+}
+\end{code}
+
+An enumeration of all the telescopes supported by the data archive.
+
+\apiheading{Instrument}
+
+\begin{code}
+enum Intrument {
+  HRS
+  RSS
+  Salticam
+}
+\end{code}
+
+An enumeration of all the instruments supported by the data archive.
+
+\apiheading{Account provider}
+
+\begin{code}
+enum AccountProvider {
+  SAAO
+  SALT
+}
+\end{code}
+
+An enumeration of the providers of accounts to which can be linked to a data archive user account.
+
+\apiheading{Link to an external account}
+
+\begin{code}
+type AccountLink {
+  userId: ID!
+  accountProvider: AccountProvider!
+  accountUserId: String!
+  accountUsername: String!
+  accountEmail: String!
+  active: Boolean!
+  activationToken: String
+  activationTokenExpiry: DateTime
+}
+\end{code}
+
+Users may have access to other (external) accounts that allow them access to proprietary data. As their username and password aren't necessarily the same as those for the data archive, the user id and provider of the external account are stored for an external account, so that the user can be identified and account-specific permissions can be checked. See Appendix~\ref{app:telescopes} for details on how users are authenticated.
+
+Linking external accounts requires activation by supplying a token. This token and its expiry date are stored in the \verb|activationToken| and \verb|activationTokenExpiry| field, respectively. The life time of an activation token shall be one day. The token is sent to the email address contained in the \verb|accountEmail| field. As long as the link hasn't been activated, the \verb|active| field must be \verb|false|.
+
+\apiheading{Target}
+
+\begin{code}
+type Target {
+  id: ID! @unique
+  name: String!
+  rightAscension: Float!
+  declination: Float!
+  targetType: String
+}
+\end{code}
+
+An (observed) target. Whereas name and target type are taken from the proposal requesting the observation, the right ascension and declination are the coordinates where the telescopes was pointing when the observation was taken. Both right ascension and declination are given in degrees. The target type must be one of the condensed designations of the \href{http://cds.u-strasbg.fr/cgi-bin/Otype?IR}{\Gls{simbad} object classification}. Examples would be \verb|SNR| or \verb|LXB|.
+
+\apiheading{Observation detail}
+
+\begin{code}
+type ObservationDetail {
+  detail: String!
+  value: JSON
+}
+\end{code}
+
+An observation detail, such as the instrument or exposure time. The \verb|detail| is a name identifying the property, and \verb|value| is the property's value.
+
+\begin{note}
+Given its type, a \verb|value| could be arbitrarily complex. However, it is strongly recommended to limit values to scalars (booleans, numbers, strings).
+\end{note}
+
+\apiheading{Data type}
+
+\begin{code}
+enum DataType {
+  ACQUISITION_RAW
+  ACQUISITION_PRDUCED
+  CALIBRATION
+  STANDARD
+  METADATA
+  SCIENCE_RAW
+  SCIENCE_PRODUCED
+}
+\end{code}
+
+An enumeration of all the available data. \verb|METADATA| can be any observation related metadata, such as notes about weather conditions or instrument problems.
+
+\apiheading{Data file}
+
+\begin{code}
+type DataFile {
+  id: ID!
+  name: String!
+  fitsHeaders: String
+  preview: [String!]
+  takenAt: DateTime
+  dataType: DataType!
+  observation: Observation
+  size: Int!
+}
+\end{code}
+
+A data file. For files containing acquisition, calibration or science data the \verb|takenAt| field should not be null and should give the time when taking the data started. For metadata files it is optional. The \verb|observation| field should be non-null only if the file is \emph{uniquely} linked to an observation.
+
+The \verb|fitsHeaders| field contains the URI of a text file with FITS header keys and values. The \verb|preview| field gives an array of URIs of preview images.
+
+\begin{note}
+It should be noted that there is \emph{no} URI field. This implies that individual files cannot be downloaded. The API only supports data downloads via data requests. The \verb|size| is the file size in bytes.
+\end{note}
+
+\apiheading{Person}
+
+\begin{code}
+type Person {
+  givenName: String!
+  familyName: String!
+}
+\end{code}
+
+A person, who is not necessarily a data archive user. Both \verb|givenName| and \verb|familyName| may be arbitrary strings.
+
+\apiheading{Proposal}
+
+\begin{code}
+type Proposal {
+  id: ID! @unique
+  title: String
+  abstract: String
+  principalInvestigator: Person!
+  observations: [Observation!]
+}
+\end{code}
+
+An observation proposal. The meaning of the id is telescope-dependent, see Appendix~\ref{app:telescopes}.
+
+\apiheading{Observation}
+
+\begin{code}
+type Observation {
+  id: ID! @unique
+  takenAt: DateTime!
+  telescope: Telescope!
+  instrument: Instrument!
+  target: Target!
+  proposal: Proposal
+  dataFiles: [DataFile!]
+  additionalDetails: [ObservationDetail!]!
+  publicFrom: DateTime!
+}
+\end{code}
+
+An observation. The \verb|takenAt| field gives the date when the observation was taken. The \verb|dataFiles| field contains all data files which are relevant for the observation, including calibrations, standards and metadata files. If the user user does not have the permission to access all the files, it should be null.
+
+The \verb|publicFrom| field gives the date when the data pertaining to the observation becomes publicly available. It may be a date in the past. If the data has not been proprietary, \verb|publicFrom| should be equal to \verb|takenAt|.
+
+The \verb|additionalDetails| field lists additional details about the observation. As explained in Section~\ref{sec:observationsQuery}, these depend on the query returning observations.
+
+If the observation is linked to a proposal, the proposal is accessible via the \verb|proposal| field.
+
+\apiheading{DataRequestStatus}
+\label{sec:dataRequestType}
+
+\begin{code}
+enum DataRequestStatus {
+  FAILED
+  PENDING
+  REMOVED
+  SUCCESSFUL
+}
+\end{code}
+
+An enumeration of the data request status values. When the request is issued, its status is \verb|PENDING| until it either it succeeds (and changes status to \verb|SUCCESSFUL|) or fails (and changes its status to to \verb|FAILED|). If the file resulting from a data request is removed, the status should be changed to \verb|REMOVED|. So the data for a data request should be available for immediate download if and only if the status is \verb|SUCCESSFUL|.
+
+\apiheading{DataRequest}
+
+\begin{code}
+type DataRequest {
+  id: ID!
+  user: User!
+  madeAt: DateTime!
+  dataItems: [DataItem!]!
+  status: DataRequestStatus!
+  statusReason: String
+  uri: String
+}
+\end{code}
+
+A data request. The \verb|user| field gives the user who made the request (or for whom the request was made). The \verb|madeAt| records the date when the request was made. The \verb|dataItems| field contains a list of all the requested files. The \verb|status| field gives the current status of the request, as explained in Section~\ref{sec:dataRequestType}. The \verb|statusReason| gives a reason for the status. It is mostly intended for communicating reasons for failure.
+
+The \verb|uri| field contains an URI from which the generated data file can be downloaded. This data file must be available for at least one week from the time when the request was made.
+
+\begin{note}
+Data requests cannot be re-issued. If a user wants to request the same files again, they have to make a new request for these files. It us up to the client using the API to give them an easy way to do this.
+\end{note}
+
+\apiheading{Cart}
+
+\begin{code}
+type Cart {
+  user: User! @unique
+  dataItems: [DataItem!]!
+}
+\end{code}
+
+A user's ``shopping cart'' with all the data files the user wants to request. There can only be one shopping cart per user. Adding a file to the cart does not constitute a data request, but only the intention to request it at a later time. See Sections~\ref{sec:addToCart} and~\ref{sec:requestDataFiles}.
+
+\begin{note}
+Technically, the cart is not part of the API, as all cart functionality is implememted on the client side. The cart content is stored using \verb|localStorage|.
+\end{note}
+
+\subsection{Queries}
+
+\apiheading{Logged in user}
+
+\begin{code}
+me: User
+\end{code}
+
+Return the details of the (logged in) user. If the user is not logged in, null should be returned instead.
+
+\restrictions
+
+Anyone may call this query.
+
+\errors
+
+No errors are raised.
+
+\functionality
+
+The query should return the details of the logged in user or null if the user is not logged in.
+
+\apiheading{Observations}
+
+\begin{code}
+observations(query: String!): [Observation!]!
+\end{code}
+
+Search for observations. The \verb|query| must be a valid SQL SELECT statement that can be executed in the observations database (cf.~Section~\ref{sec:observationsDatabase}). An exception should be raised if the query contains a LIMIT constraint exceeding 200. The query may be rejected if it is deemed too complex.
+
+The \verb|additionalDetails| in the returned Observation objects correspond to the columns returned by the SQL query. For example, a query of the form
+
+\begin{code}
+SELECT A.id, A.a, B.id, B.b AS c FROM A JOIN B
+\end{code}
+
+would result in Observation objects of the form
+
+\begin{code}
+{
+  "id": "0d44aea6-86a0-4503-a7be-77d7cf79b685",
+  ...
+  "additionalDetails": {
+    "A.id": "a76b0ac0-58ad-4f16-9dd8-6abd1545793a",
+    "a": 12
+    "B.id": "047307c2-a669-4a37-9a50-3106d13c6b21",
+    "c": "Test"
+  }
+}
+\end{code}
+
+\restrictions
+
+Anyone may call this query.
+
+\errors
+
+An error is raised if any of the following is true.
+
+\begin{itemize}
+    \item The query is not a SELECT statement.
+    \item The query contains a LIMIT constraint exceeding the maximum allowed one.
+    \item The query is too complex.
+    \item The query cannot be executed.
+\end{itemize}
+
+\functionality
+
+This query should
+
+\begin{enumerate}
+    \item Check the query and raise an error if need be.
+    \item Add a default LIMIT constraint to the SQL query if there is none.
+    \item Execute the query and return the results.
+\end{enumerate}
+
+\apiheading{Data files}
+
+\begin{code}
+dataFiles(ids: [ID!]!): [DataFile!]!
+\end{code}
+
+Query data files.
+
+\restrictions
+
+A user can only query for data files they have access to.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item There aren't data files for all the given ids.
+    \item The user queries for a data file they don't have access to.
+\end{itemize}
+
+\functionality
+
+The query should
+
+\begin{enumerate}
+    \item Check that there exists a data file for each of the given ids.
+    \item Check that the user has access to all of the data files.
+    \item Return the data file details.
+\end{enumerate}
+
+\begin{note}
+The user does not have to be logged in to call this query.
+\end{note}
+
+\apiheading{Data requests}
+
+\begin{code}
+dataRequests(first: Int = 100, skip: Int = 0): [DataRequest!]!
+\end{code}
+
+Return the data requests made by the (logged in) user. The arguments are used to limit the number of data requests and to skip some requests. The number of requested requests must mot exceed 200. Data requests are ordered by the time when they were made, starting with the most recent request.
+
+\restrictions
+
+The user must be logged in to call this query.
+
+\errors
+
+An error is raised if any of the following is true.
+
+\begin{enumerate}
+    \item The user is not logged in.
+    \item The number of requested data requests is greater than the maximum allowed one.
+\end{enumerate}
+
+\functionality
+
+This query should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Return the data requests for the uzser.
+\end{enumerate}
+
+\begin{note}
+It is likely that better paging functionality will be added in a future revision.
+\end{note}
+
+\subsection{Mutations}
+
+\apiheading{Creating a user account}
+
+\begin{code}
+signup(
+  username: String! @unique
+  password: String!
+  email: String! @unique
+  givenName: String!
+  familyName: String!
+  affiliation: String!
+): User!
+\end{code}
+
+Create a new user for the data archive. The new user is automatically logged in.
+
+\restrictions
+
+Anyone may call this mutation.
+
+\errors
+
+An error should be raised in any of the following is true.
+
+\begin{itemize}
+    \item The chosen username exists already.
+    \item The chosen email address exists already.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check whether the user exists already.
+    \item Check whether the email address exists already.
+    \item Hash the password.
+    \item Create the new user in the database, using an empty array for the permissions.
+    \item Set the authentication cookie with the new user's id (cf. Section~\ref{sec:authentication}).
+    \item Return the details of the new user.
+\end{enumerate}
+
+\begin{note}
+This mutation can be called by a logged in user. This user will be logged out (as the new user is logged in).
+\end{note}
+
+\apiheading{Updating user details}
+
+\begin{code}
+updateUser(
+  id: ID!,
+  username: String
+  password: String
+  email: String
+  givenName: String
+  familyName: String
+  affiliation: String
+): User!
+\end{code}
+
+Updates an existing user, identified by its \verb|id|. User details are only updated if they are passed as an argument. For example, the quuery
+
+\begin{code}
+mutation {
+  updateUser(
+    id: "697857e1-8119-45d5-895a-87c1bef4e5b8"
+    email: "user@new.email.com"
+  ) {
+    id
+  }
+}
+\end{code}
+
+would update the user's email address, but would leave all other details unchanged.
+
+\restrictions
+
+Users can only update their own details unless they have administrator permissions.
+
+\errors
+
+An error should be raised in any of the following is true.
+
+\begin{itemize}
+    \item The user is not logged in.
+    \item The user does not have administrator permissions and their user id is not the same as the id passed in the mutation arguments.
+    \item The chosen username differs from the existing one and another user has the new username already,
+    \item The chosen email address differs from the existing one and another user has the new email address already,
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that the \verb|id| argument is the same as the user's id (unless the user has administrator permissions).
+    \item If a new username has been supplied, check there is no other user with that username.
+    \item If a new email address has been supplied, check there is no other user with that email address.
+    \item If a password has been included in the arguments, hash it.
+    \item Update the user details in the database.
+    \item Return the updated user details.
+\end{enumerate}
+
+\apiheading{Logging in}
+
+\begin{code}
+signin(username: String!, password: String!): User!
+\end{code}
+
+Log a user in. This means that the authentication token is set (cf. Section~\ref{sec:authentication}).
+
+\restrictions
+
+Anyone can call this mutation.
+
+\errors
+
+An error should be raised if there exists no user with the given username and password.
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there exists a user with the given username and password.
+    \item Log that user in by setting the authentication token to the user's id.
+    \item Return the details of the logged in user.
+\end{enumerate}
+
+\apiheading{Logging out}
+
+\begin{code}
+signout: Boolean
+\end{code}
+
+Log the user out. This means that the authentication token is removed (cf. Section~\ref{sec:authentication}). If the user is not logged in, the mutation does nothing. The mutation should return \verb|true|.
+
+\restrictions
+
+Anyone may call this mutation.
+
+\errors
+The mutation does not raise any errors.
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Remove the authentication token.
+    \item Return \verb|true|.
+\end{enumerate}
+
+\apiheading{Switching users}
+
+\begin{code}
+switchUser(id: ID!): User!
+\end{code}
+
+Login as another user. This means that the authentication token is updated with the other user's id (cf. Section~\ref{sec:authentication}). The details of the other user are returned.
+
+\restrictions
+
+Only users with administrator permissions may call this mutation.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item The currently logged in user does not have administrator permissions.
+    \item There exists no user with the given id.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that the user haa administrator permissions.
+    \item Check there exists a user with the given id.
+    \item Update the authentication cookie with the given id.
+    \item Return thne details of the user with the given id.
+\end{enumerate}
+
+\apiheading{Requesting a password reset}
+
+\begin{code}
+requestPasswordReset(email: String!): String!
+\end{code}
+
+Request an email with a link for resetting the password. The mutation returns the email address to which the email was sent.
+
+\begin{note}
+Returning the email address is a bit redundant, given that it is passed as an argument. However, a future version might allow users to supply their username instead.
+\end{note}
+
+\restrictions
+
+Anyone may call this mutation.
+
+\errors
+
+An error should be raised if there exists no user with the given email address.
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there exists a user with the given email address.
+    \item Create a cryptographically secure token.
+    \item Update the user's \verb|passwordResetToken| and \verb|passwordResetTokenExpiry| in the database with the generated token and the current time plus one day, respectively.
+    \item Return the email address.
+\end{enumerate}
+
+\apiheading{Resetting the password}
+
+\begin{code}
+resetPassword(resetToken: String!, password: String!): User!
+\end{code}
+
+\restrictions
+
+Anyone may call this mutation.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{enumerate}
+    \item There exists no user with the given reset token.
+    \item The current date is later than the reset token expiry for the user with the given reset token.
+\end{enumerate}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there exists a user with the given password reset token.
+    \item Check that the reset token has not expired.
+    \item Hash the given password (in the same way the \verb|createUser| hashes it).
+    \item Update the user's password and set their \verb|passwordResetToken| and \verb|passwordResetTokenExpiry| fields to null in the database.
+    \item Log the user in by settings their authentication token (cf. Section~\ref{sec:authentication}).
+    \item Return the user details.
+\end{enumerate}
+
+\apiheading{Updating user permissions}
+
+\begin{code}
+updatePermissions(userId: ID!, permissions: [Permission!]!): User!
+\end{code}
+
+Update a user's permissions.
+
+\restrictions
+
+The user must have administrator permissions to call this mutation.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item The user is not logged in.
+    \item The logged in user does not have administrator permissions.
+    \item There exists no user with the given user id.
+\end{itemize}
+
+\functionality
+
+\begin{itemize}
+    \item Check that the user is logged in.
+    \item Check that the logged in user has administrator permissions.
+    \item Check there is a user \emph{u} with the given user id.
+    \item Update the permissions of \emph{u} with the given ones.
+    \item Return the updated user details.
+\end{itemize}
+
+\apiheading{Requesting to link an account}
+
+\begin{code}
+requestAccountLink(
+  accountProvider: AccountProvider!
+  username: String!
+  password: String!
+): AccountLink!
+\end{code}
+
+Request to link the user to an external account. If the user can be identified as a user of the external account provider, an email with an activation link is sent to their email address, as stored in the external account.
+
+\restrictions
+
+The user must be logged in to call the mutation.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item The user is not logged in.
+    \item An account link exists already for the given account provider and username.
+    \item The external account provider cannot authenticate the user with the given username and password.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that no account link exists already for the given account provider and username.
+    \item Check that there exists a user with the given username and password for the external account provider.
+    \item Generate a cryptographically secure token.
+    \item Create a new account link, using the generated token for the \verb|activationToken| field, choosing the current time plus one day as value for the \verb|activationTokenExpity| field and setting the \verb|active| field to \verb|false|.
+    \item Send an email with an activation link (with the activation token) to the external account's email address.
+    \item Return the account link details.
+\end{enumerate}
+
+\apiheading{Activating an account link}
+
+\begin{code}
+activateAccountLink(activationToken: String!): AccountLink!
+\end{code}
+
+Activate the link to an external account. The details of the activated link are returned.
+
+\restrictions
+
+Anyone may call this mutation.
+
+\errors
+
+An error should be raised if any of the folloewing is true.
+
+\begin{itemize}
+    \item There exists no account link with the given activation token.
+    \item The activation token has expired already.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there exists an account link with the given activation token.
+    \item Check that the token has no expired.
+    \item Set the account link's \verb|activationToken| and \verb|activationTokenExpiry| fields to null and its \verb|active| field to \verb|true| in the database.
+    \item Return the details of the activated account link.
+\end{enumerate}
+
+\apiheading{Requesting an activation token}
+
+\begin{code}
+requestAccountLinkActivationToken(accountLinkId: ID!): AccountLink!
+\end{code}
+
+Request a new token for activating an account link. The new token token is sent in an email to the external account's email address. This mutation should always return \verb|true|.
+
+\restrictions
+
+A user can only request a new token if the account link is for them or if they have administrator permissions.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item The user is not logged in.
+    \item There exists no account link for the given id.
+    \item The account link is for another user and the logged in user does not have administrator permissions.
+    \item The account link is active already.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that there exists an account link with the given id.
+    \item Check that the account link belongs to the user or that the user has administrator permissions.
+    \item Check that the account link is not active.
+    \item Generate a cryptographically secure token.
+    \item Update the account link in the database, assigning the generated token to the \verb|activationToken| field and choosing the current time plus one day as value for the \verb|activationTokenExpity|.
+    \item Send an email with an activation link (with the activation token) to the external account's email address.
+    \item Return the account link details.
+\end{enumerate}
+
+\apiheading{Unlinking an account}
+
+\begin{code}
+deleteAccountLink(accountLinkId: ID!): AccountLink!
+\end{code}
+
+Remove an account link.
+
+\restrictions
+
+A user may only remove an account link if they own the link or if they have administrator permissions.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{enumerate}
+    \item The user is not logged in.
+    \item There exists no account link for the given id.
+    \item The account link is for another user and the logged in user does not have administrator permissions.
+\end{enumerate}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that there exists an account link for the given id.
+    \item Check that the account link belongs to the user or that the user has administrator permissions.
+    \item Delete the account link from the database.
+    \item Return the details of the deleted account link.
+\end{enumerate}
+
+\apiheading{Adding data files to the cart}
+
+\begin{code}
+addToCart(dataFileIds: [ID!]!) @client: [ID!]!
+\end{code}
+
+Add data files to the user's cart.
+
+\restrictions
+
+Any user may call this mutation.
+
+\errors
+
+An error should be raised if web storage is not available on the user's browser.
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that web storage is available.
+    \item Load the cart from web storage (if there is a cart already).
+    \item Add the given ids to the cart, avoiding duplicate entries.
+    \item Save the updated cart to web storage.
+    \item Return the added ids (irrespective of whether they were in the cart before).
+\end{enumerate}
+
+\begin{note}
+This mutation is defined on the client side only. Only ids are returned so that there is no need to store any additional details in web storage.
+\end{note}
+
+\apiheading{Removing data files from the cart}
+
+\begin{code}
+deleteFromCart(dataFileIds: [ID!]!) @client: [ID!]!
+\end{code}
+
+Remove data files from the user's cart.
+
+\restrictions
+
+Any user may call this mutation.
+
+\errors
+
+An error should be raised if web storage is not available on the user's browser.
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that web storage is available.
+    \item Load the cart from web storage (if there is a cart already).
+    \item Remove the given ids from the cart (if they are in the cart).
+    \item Save the updated cart to web storage.
+    \item Return the removed ids (irrespective of whether were in the cart before).
+\end{enumerate}
+
+\begin{note}
+This mutation is defined on the client side only. Only ids are returned so that there is no need to store any additional details in web storage.
+\end{note}
+
+\apiheading{Requesting data files}
+
+\begin{code}
+createDataRequest(dataFileIds: [ID!]!): DataRequest!
+\end{code}
+
+Make a data request. The requested files are zipped, and the user receives an email with a download link once the zip file is available.
+
+\restrictions
+
+A user may only request data files which they have access to.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item There do not exist data files for all the given ids.
+    \item The user does not have access to all the data files.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there exists a data file for each of the given ids.
+    \item Check that the user has access to all the data files.
+    \item Create a new data request. Choose the current date for the \verb|madeAt| field, and set the \verb|status| to \verb|PENDING|.
+    \item Initiate the process of generating the file to download.
+    \item Return the data request details.
+\end{enumerate}
+
+\begin{note}
+The mutation does not wait for the file generation process to finish.
+\end{note}
+
+\apiheading{Updating a data request}
+
+\begin{code}
+updateDataRequest(id: ID!, status: DataRequestStatus!): DataRequest!
+\end{code}
+
+Update the status of a data request.
+
+\restrictions
+
+A user must have administrator permissions to call this mutation.
+
+\errors
+
+An error should be raised if any of the following is true.
+
+\begin{itemize}
+    \item The user is not logged in.
+    \item The user does not have administrator permissions.
+    \item There exist no data request for the given id.
+\end{itemize}
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that the user is logged in.
+    \item Check that the user has administrator permissions.
+    \item Check that there exists a data request for the given id.
+    \item Update the \verb|status| field of the data request with the given status.
+    \item Return the details of the updated data request.
+\end{enumerate}
+
+\subsection{Subscriptions}
+
+\apiheading{Data request status}
+
+Subscribe to changes of a data request status.
+
+\begin{code}
+dataRequestStatusChanged(dataRequestID: ID!): DataRequest!
+\end{code}
+
+\restrictions
+
+Subscribing may be restricted to the user who made the data request and to users with administrator permissions.
+
+\errors
+
+An error should be raised if there exists no data request for the given id.
+
+An error may be raised if the user did not make the data request or has administrator permissions.
+
+\functionality
+
+The subscription should
+
+\begin{enumerate}
+    \item Optionally check that the user is logged in.
+    \item Check that there exists a data request for the given id.
+    \item Optionally check that the user made the request.
+    \item Return the data request details whenever the status changes.
+\end{enumerate}

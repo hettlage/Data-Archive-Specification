@@ -1,0 +1,25 @@
+\section{Telescope-specific details}
+\label{app:telescopes}
+
+\subsection{Database}
+
+\subsubsection{SALT}
+
+SALT-specific details are taken from the SALT's Science Database (SDB), which is hosted on \verb|sdb.salt|.
+
+\subsection{User authentication}
+
+\subsubsection{SALT}
+
+A user is uniquely identified by the \verb|PiptUser_Id| or \verb|Username| in the \verb|PiptUser| table. Their credentials can be checked with the following query.
+
+\begin{code}
+SELECT COUNT(*) FROM PiptUser
+       WHERE Username=<Username> AND Password=MD5(<Password>)
+\end{code}
+
+\subsection{Proposal id}
+
+\subsubsection{SALT}
+
+The proposal code (as contained in the \verb|ProposalCode| table) is used as proposal id.

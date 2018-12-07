@@ -1,16 +1,71 @@
 \documentclass[12pt]{article}
-\RequirePackage{latexsym}
-\RequirePackage{SALTb}
+\usepackage{import}
+\usepackage{latexsym}
+\usepackage{lipsum}
+\usepackage{glossaries}
+\usepackage{SALT}
+ 
+\usepackage{graphqlapi}
 
+\usepackage{hyperref}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,      
+    urlcolor=cyan,
+}
+
+\parindent0mm
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for the horizontal lines, change thickness here
+
+\colorlet{framecolor}{orange}
+\colorlet{shadecolor}{orange!50!}
+
+\newenvironment{note}{%
+    \def\FrameCommand{\fboxrule=\FrameRule\fboxsep=\FrameSep \fcolorbox{framecolor}{shadecolor}}%
+    \MakeFramed {\advance\hsize-\width \FrameRestore}
+    \textbf{Note}\par}%
+    {\endMakeFramed}
+    
+\import{}{glossaries}
+    
 \begin{document}
+
+\begin{titlepage}
+\begin{centering}
+{\bf\LARGE
+South African Astronomical Observatory\\
+Southern African Large Telescope\\[2em]
+\includegraphics[width=14cm,height=3cm,keepaspectratio]{SAAO_SALT_Logos.png}\\[2em]
+}
+\end{centering}
+
+\HRule\\[1.5em]
+{\bf\LARGE Specification: SAAO/SALT Data Archive}\\[1em]
+\HRule\\[2em]
+
+\begin{tabular}{p{3.3cm}p{1mm}p{11cm}}
+\hfill\underline{\strut \large \bf Author(s)}:  && {\large \bf Lucian Botha}  \\[10pt]
+                                                && {\large \bf Christian Hettlage}  \\[10pt]
+                                                && {\large \bf Sifiso Myeza}  \\[10pt]
+                                                && {\large \bf Nhlavutelo Macebele}  \\[10pt]
+\underline{\strut \large \bf Doc. number}:      && {\large \bf TBD} \\[10pt]
+\hfill\underline{\strut \large \bf Version}:    && {\large \bf 0.1} \\[10pt]
+\hfill\underline{\strut \large \bf Date}:       && {\large \it{December 2018}}   \\[10pt]
+\hfill\underline{\strut \large \bf Keywords}:   && {\large  data archive}   \\[10pt]
+\hfill\underline{\strut \large \bf Approved}:   && {\large\bf \ldots} \\[14pt]
+%                                         && {\large Signature:\underline{\hspace{4cm}} Date:\underline{\hspace{3cm}}}
+  \end{tabular}\par
+
 
 \title[SAAO/SALT Data Archive]{Specification for the SAAO/SALT Data Archive\\[2em]\includegraphics[width=14cm,height=3cm,keepaspectratio]{SAAO_SALT_Logos.png}\\[2em]}
 
 \author[Lucian Botha et al.]{Lucian Botha \and Christian Hettlage \and Nhlavutelo Macebele \and Sifiso Myeza}
 
 \dnumber{2000AF0001}
-\version{1.2}
-\date{TBD}
+\version{0.1}
+\date{December 2018}
 \keywords{SALT \LaTeXe\ style}
 
 \aabstract{
@@ -21,16 +76,20 @@ The procedure of making standard title page is described.
 An example is shown.
 }
 
-\maketitle
+%\maketitle
+\vfill
 
-\newpage
+\end{titlepage}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Description}
 
-\section{API}
+\printglossaries
 
-The API for the data archive is based on GraphQL. The following sections outline its types, queries, mutations and subscriptions.
+\import{sections/}{api}
+
+\appendix
+
+\import{appendices/}{telescopes}
 
 \label{lastpage}
 
