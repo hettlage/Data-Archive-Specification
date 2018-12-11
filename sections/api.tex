@@ -25,16 +25,22 @@ If both a cookie and an Authorization header are supplied, an error shall be thr
 Cookie-based authentication is used as it is required for seamless server-side rendering. HTTP based authentication is offered to support API clients other than the data archive web frontend.
 \end{note}
 
+The API allows administrators to switch to another user, effectively logging in as that user. The original user's authentication cookie's value is stored in a cookie named ``switchedUser''. If an administrator A switches to an administrator B, and as B switches to another C, the switched user cookie is \emph{not} updated with B's token.
+
+Both the authentication and the switched user cookie should be deleted when the user logs out.
+
 \subsubsection{GraphQL extensions}
 
 The API content described below makes use of various extensions to the GraphQL standard.
 
 \begin{itemize}
     \item The \verb|DateTime| scalar type is a datetime and it must be specified as a string conforming to the ISO 8601 format. See the \href{https://www.prisma.io/docs/1.4/reference/service-configuration/data-modelling-(sdl)-eiroozae8u/#scalar-types}{\Gls{prisma} documentation on scalars} for examples.
-    \item The \verb|JSON| scalar type is an arbitrary JSON object. See the \href{https://www.prisma.io/docs/1.4/reference/service-configuration/data-modelling-(sdl)-eiroozae8u/#scalar-types}{\Gls{prisma} documentation on scalars} for more details.
+    \item The scalar types \verb|DatabaseColumn| and \verb|DatabaseValue| are used for observation queries, see Section~\ref{sec:observationQueryTypes}.
     \item The \verb|@unique| directive indicates that the field must have a unique value.
     \item The \verb|@client| directive indicates that a field is defined on the client side.
 \end{itemize}
+
+See Section~\ref{sec:sec:observationQueryTypes} for additional custom types.
 
 \subsection{Types}
 
@@ -51,7 +57,7 @@ type User {
   affiliation: String!
   accountLinks: [AccountLink!]!
   permissions: [Permission!]
-  passwordResetToken: String
+  passwordResetToken: String @unique
   passwordResetTokenExpiry: DateTime
 }
 \end{code}
@@ -62,7 +68,7 @@ The affiliation can be an arbitrary string.
 
 The \verb|permissions| define what privileges the user has,
 
-The \verb|acountLinks| field records accounts by other providers (such as the SALT Web Manager or the SAAO Observer Portal) to which the user's account is linked.
+The \verb|acountLinks| field records accounts by other providers (such as the \acrshort{SALT} Web Manager or the \acrshort{SAAO} Observer Portal) to which the user's account is linked.
 
 \begin{note}
 While the username is stored exactly in the way the user specified it when registering, it should be treated as case-insensitive for the purpose of authentication.
@@ -150,16 +156,12 @@ An (observed) target. Whereas name and target type are taken from the proposal r
 
 \begin{code}
 type ObservationDetail {
-  detail: String!
-  value: JSON
+  column: DatabaseColumn!
+  value: DatabaseValue
 }
 \end{code}
 
-An observation detail, such as the instrument or exposure time. The \verb|detail| is a name identifying the property, and \verb|value| is the property's value.
-
-\begin{note}
-Given its type, a \verb|value| could be arbitrarily complex. However, it is strongly recommended to limit values to scalars (booleans, numbers, strings).
-\end{note}
+An observation detail, such as the exposure time. The \verb|column| must be the column (in the observations database, cf. Section~\ref{sec:observationsDatabase}) containing the property, and \verb|value| is the property's value. See Section~\ref{sec:observationQueryTypes} for an explanation of the \verb|DatabaseColumn| abnd the \verb|DatabaseValue| types.
 
 \apiheading{Data type}
 
@@ -300,6 +302,104 @@ A user's ``shopping cart'' with all the data files the user wants to request. Th
 Technically, the cart is not part of the API, as all cart functionality is implememted on the client side. The cart content is stored using \verb|localStorage|.
 \end{note}
 
+\subsection{Observation query types}
+\label{sec:observationQueryTypes}
+
+Observation queries (cf. Section~\ref{sec:observationsQuery} )are described in terms of the (additional) columns to return and the conditions to use in the WHERE statement.
+
+\begin{code}
+observations(
+  columns: [...],
+  where: ...
+) {
+  ...
+}
+\end{code}
+
+The input and output for these queries make use of various custom scalar and object types.
+
+\apiheading{Database columns}
+
+Database columns are described with a custom scalar type.
+
+\begin{code}
+scalar DatabaseColumn
+\end{code}
+
+Instances of this type must be of the form \verb|table.column|, where both \verb|table| and \verb|column| may contain word characters only. Incoming values into an object with a \verb|table| and a \verb|column| property. For example, \verb|Proposal.Title| is parsed into \verb|{ table: "Proposal", column: "Title" }|.
+
+\apiheading{Values in WHERE constraints}
+
+Values in a WHERE constraint are described withb another custom scalar type.
+
+\begin{code}
+scalar DatabaseValue
+\end{code}
+
+Instances of this type may be strings, floats, integers or booleans. In case of booleans, \verb|true| is parsed into 1 and \verb|false| into 0.
+
+\begin{note}
+The API implementation may use an external npm package for these types and may accordingly choose different names for the types. The external package may extend the functionality, as long as the above functionality is supported.
+\end{note}
+
+\apiheading{WHERE constraints}
+
+WHERE constraints are described with a custom object type.
+
+\begin{code}
+input WhereConstraintInput {
+    AND: [WhereConstraintInput!]
+    OR: [WhereConstraintInput!]
+    NOT: WhereConstraintInput
+    EQUALS: BinaryOperatorInput
+    LESS_THAN: BinaryOperatorInput
+    GREATER_THAN: BinaryOperatorInput
+    LESS_EQUAL: BinaryOperatorInput
+    GREATER_EQUAL: BinaryOperatorInput
+    CONTAINS: BinaryStringOperatorInput
+    STARTS_WITH: BinaryStringOperatorInput
+    ENDS_WITH: BinaryStringOperatorInput
+    IN: [DatabaseValue!]
+    WITHIN_RADIUS: [WithinRadiusInput]
+}
+\end{code}
+
+If no field is provided, the condition \verb|1 = 1| is assumed. If multiple fields are included, it is assumed they are joined by a logical AND.
+
+Table~\ref{tab:whereConstraintInputFields} explains the meaning of the various fields. Some points are worth noting:
+
+\begin{itemize}
+    \item If no child conditions are included with \verb|AND|, the condition is assumed to evaluate to true.
+    \item If no child conditions are included with \verb|AND|, the condition is assumed to evaluate to false.
+    \item \verb|WITHIN_RADIUS| checks whether the given radius is less than or equal to the angular distance between the given centre and the position given by the right ascension and declination columns. The radius must be in degrees.
+\end{itemize}
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{ll}
+         Field name &  True if and only if\\\hline
+         AND & All child conditions are true\\
+         OR & At least one child condition is true\\
+         NOT & The child condition is not true\\
+         EQUALS & The column value is equal to the given value\\
+         LESS\_THAN & The column value is less than the given value\\
+         GREATER\_THAN & The column value is greater than the given value\\
+         LESS\_THAN & The column value is less than or equal to the given value\\
+         GREATER\_THAN & The column value is greater than or equal to the given value\\
+         CONTAINS & The column value contains the given string\\
+         STARTS\_WITH & The column value starts with the given string\\
+         ENDS\_WITH & The column value ends with the given string\\
+         IN &The column value is equal to one of the given values\\
+         WITHIN\_RADIUS & (See main text)
+    \end{tabular}
+    \caption{The conditions described by the fields of the WhereConstraintInput type.}
+    \label{tab:whereConstraintInputFields}
+\end{table}
+
+\subsection{Errors}
+
+The following sections contain lists of errors that can occur while queries, mutations or subscriptions are being executed. These lists do not include server-side errors such as network issues, missing database permissions and the like. These should be handled in a way that results in meaningful (and safe) error messages to be given to the user.
+
 \subsection{Queries}
 
 \apiheading{Logged in user}
@@ -323,17 +423,31 @@ No errors are raised.
 The query should return the details of the logged in user or null if the user is not logged in.
 
 \apiheading{Observations}
+\label{sec:observationsQuery}
 
 \begin{code}
-observations(query: String!): [Observation!]!
+observations(
+  columns: [DatabaseColumn!]!
+  where: WhereConstraintInput
+  limit: Int
+  skip: Int
+): [Observation!]!
 \end{code}
 
-Search for observations. The \verb|query| must be a valid SQL SELECT statement that can be executed in the observations database (cf.~Section~\ref{sec:observationsDatabase}). An exception should be raised if the query contains a LIMIT constraint exceeding 200. The query may be rejected if it is deemed too complex.
+Search for observations. Every item in the columns array must be a valid column name (in the form \verb|table.column|) from the observations database (cf.~Section~\ref{sec:observationsDatabase}). The \verb|skip| argument skips the given number of results. The \verb|limit| arguments limits the number of results to the given number. An exception should be raised if the value of \verb|limit| exceeds 200. The query may be rejected if it is deemed too complex.
 
-The \verb|additionalDetails| in the returned Observation objects correspond to the columns returned by the SQL query. For example, a query of the form
+See Section~\ref{sec:observationQueryTypes} for details on the custom scalar types used in the query.
+
+The \verb|additionalDetails| in the returned Observation objects correspond to the columns paased as the \verb|columns| argument. For example, a query of the form
 
 \begin{code}
-SELECT A.id, A.a, B.id, B.b AS c FROM A JOIN B
+observations(columns: ["Proposal.Title", "Proposal.PrincipalInvestigator", "Salticam.Filter"]) {
+  id
+  additionalDetails {
+    column
+    value
+  }
+}
 \end{code}
 
 would result in Observation objects of the form
@@ -341,13 +455,11 @@ would result in Observation objects of the form
 \begin{code}
 {
   "id": "0d44aea6-86a0-4503-a7be-77d7cf79b685",
-  ...
-  "additionalDetails": {
-    "A.id": "a76b0ac0-58ad-4f16-9dd8-6abd1545793a",
-    "a": 12
-    "B.id": "047307c2-a669-4a37-9a50-3106d13c6b21",
-    "c": "Test"
-  }
+  "additionalDetails": [
+    { column: "Proposal.Title", value: "Supernovae witb SALT" },
+    { column: "Proposal.PrincipalInvestigator", value: "John Doe" },
+    { column: "Salticam.Filter", value: "V" }
+  ]
 }
 \end{code}
 
@@ -498,7 +610,8 @@ This mutation can be called by a logged in user. This user will be logged out (a
 updateUser(
   id: ID!,
   username: String
-  password: String
+  oldPassword: String!
+  newPassword: String
   email: String
   givenName: String
   familyName: String
@@ -506,7 +619,7 @@ updateUser(
 ): User!
 \end{code}
 
-Updates an existing user, identified by its \verb|id|. User details are only updated if they are passed as an argument. For example, the quuery
+Updates an existing user, identified by its \verb|id| and the (current) password. User details are only updated if they are passed as an argument. For example, the quuery
 
 \begin{code}
 mutation {
@@ -523,7 +636,7 @@ would update the user's email address, but would leave all other details unchang
 
 \restrictions
 
-Users can only update their own details unless they have administrator permissions.
+Users can only update their own details unless they have administrator permissions. They must supply their current password.
 
 \errors
 
@@ -531,6 +644,7 @@ An error should be raised in any of the following is true.
 
 \begin{itemize}
     \item The user is not logged in.
+    \item The password supplied as the \verb|oldPassword| argument does not match the user's current password in the database.
     \item The user does not have administrator permissions and their user id is not the same as the id passed in the mutation arguments.
     \item The chosen username differs from the existing one and another user has the new username already,
     \item The chosen email address differs from the existing one and another user has the new email address already,
@@ -545,7 +659,7 @@ The mutation should
     \item Check that the \verb|id| argument is the same as the user's id (unless the user has administrator permissions).
     \item If a new username has been supplied, check there is no other user with that username.
     \item If a new email address has been supplied, check there is no other user with that email address.
-    \item If a password has been included in the arguments, hash it.
+    \item If a password has been included as \verb|newPassword| argument, hash it.
     \item Update the user details in the database.
     \item Return the updated user details.
 \end{enumerate}
@@ -582,7 +696,7 @@ The mutation should
 signout: Boolean
 \end{code}
 
-Log the user out. This means that the authentication token is removed (cf. Section~\ref{sec:authentication}). If the user is not logged in, the mutation does nothing. The mutation should return \verb|true|.
+Log the user out. This means that the authentication and switched user cookies are removed (cf. Section~\ref{sec:authentication}). If the user is not logged in, the mutation does nothing. The mutation should return \verb|true|.
 
 \restrictions
 
@@ -596,7 +710,7 @@ The mutation does not raise any errors.
 The mutation should
 
 \begin{enumerate}
-    \item Remove the authentication token.
+    \item Remove the authentication and switched user cookies.
     \item Return \verb|true|.
 \end{enumerate}
 
@@ -617,6 +731,7 @@ Only users with administrator permissions may call this mutation.
 An error should be raised if any of the following is true.
 
 \begin{itemize}
+    \item The user is not logged in.
     \item The currently logged in user does not have administrator permissions.
     \item There exists no user with the given id.
 \end{itemize}
@@ -627,10 +742,46 @@ The mutation should
 
 \begin{enumerate}
     \item Check that the user is logged in.
-    \item Check that the user haa administrator permissions.
+    \item Check that the user has administrator permissions.
     \item Check there exists a user with the given id.
+    \item Create the switched user cookie with the user's id, unless the cookie exists already.
     \item Update the authentication cookie with the given id.
-    \item Return thne details of the user with the given id.
+    \item Return the details of the user with the given id.
+\end{enumerate}
+
+\apiheading{Switching back to the original user}
+
+\begin{code}
+switchOff: User!
+\end{code}
+
+Switch back to the original user who had switched users. This means that the authentication cookie is updated from the switched user cookie, and that the latter is deleted.
+
+\restrictions
+
+A user must be logged in and must have a valid switched user cookie to call this mutation.
+
+\errors
+
+An error shall be raised if any of the following is true.
+
+\begin{itemize}
+    \item The user does not have a switched user cookie.
+    \item The switched user cookie is not valid or has expired.
+    \item There exists no user with the id stored in the switched user cookie.
+\end{itemize}
+
+\functionality
+
+The mutation should
+
+\begin{enumerate}
+    \item Check that there is a switched user cookie.
+    \item Check that the switched user cookie is valid and has not expired.
+    \item Check that there exists a user with the id stored in the switched user cookie.
+    \item Update (or create) the authentication cookie with the user id from the switched user cookie.
+    \item Delete the switched user cookie.
+    \item Return the details for the user with the id that had been stored in the switched user cookie.
 \end{enumerate}
 
 \apiheading{Requesting a password reset}
@@ -1035,3 +1186,8 @@ The subscription should
     \item Optionally check that the user made the request.
     \item Return the data request details whenever the status changes.
 \end{enumerate}
+
+\subsection{File downloads}
+
+Users may download three different types of files:
+

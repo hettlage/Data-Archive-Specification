@@ -2,7 +2,7 @@
 \usepackage{import}
 \usepackage{latexsym}
 \usepackage{lipsum}
-\usepackage{glossaries}
+\usepackage[acronym]{glossaries}
 \usepackage{SALT}
  
 \usepackage{graphqlapi}
@@ -83,7 +83,9 @@ An example is shown.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\printglossaries
+\printglossary[type=\acronymtype]
+
+\printglossary
 
 \import{sections/}{api}
 
